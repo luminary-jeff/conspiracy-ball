@@ -15,7 +15,7 @@ Sleeper's public API is read-only, so the tool cannot set lineups, submit claims
 | roster | QB, RB, RB, WR, WR, TE, FLEX(RB/WR/TE), K, DEF + 6 BN + 1 IR = 15 draftable |
 | draft | `draft_id 1389361720291528705`, 15-round snake, 60-second pick timer, no 3rd-round reversal, cpu autopick on. Draft is **2026-09-05 1:30 PM EST**. `draft_order` is null until the commissioner sets it; then it is `{user_id: slot}` |
 | keepers | max 1; keepers show up in `/draft/<id>/picks` with `is_keeper: true` and are treated as drafted |
-| waivers | $100 FAAB, `waiver_type 1`, processes Tuesday (`waiver_day_of_week 2`), min bid 0 |
+| waivers | **reverse-standings priority, NOT FAAB** (`waiver_type 1`; Jeff's original brief said FAAB — the API and the app disagree). `waiver_budget 100` is Sleeper's default and unused. Processes Wednesday morning (`waiver_day_of_week 2` = Tue night deadline), dropped players sit 2 days. Before the first kickoff every unowned player is an instant free-agent add |
 | season | playoffs 6 teams starting week 15; trade deadline week 11; trade review 2 days; 6 veto votes |
 | notes | two roster slots (6, 7) had no owner on 2026-09-04; user `HaalandGlobeTrotter` was in the league with no roster. `settings.draft_rounds` on the league object says 3 — ignore it, the draft object's `settings.rounds` (15) is authoritative |
 
@@ -80,7 +80,7 @@ In-sample caveat: the same projections are used to draft and to score.
 | `python3 ff.py brief [--all]` | day-aware in-season brief. Tue: recap + waivers + trades + preview. Wed: waivers + trades + preview + lineup. Thu-Mon: lineup + preview. `--all` prints everything |
 | `python3 ff.py lineup` | optimal starters vs what is set in Sleeper; lists OUT/IN moves only if the gain is >= 1 pt; Q/D re-check list with the fallback for each; early-lock (Thu/Fri) warning; ceiling tilt when win prob < 40%, floor tilt > 65% |
 | `python3 ff.py preview` | opponent, both projected totals, win probability (normal, team sd 20), slot-by-slot edges, their injury exposure, and what happens if they fix a bad lineup |
-| `python3 ff.py waivers` | ranked claims with conditional drops and FAAB bids (35/20/10/4/1% of remaining budget by ROS gain), IR moves, upcoming byes (4 wks), DEF streams, trending adds |
+| `python3 ff.py waivers` | roster moves: ADD NOW vs CLAIM, each with its drop (never the last backup QB/TE), IR moves, DEF stream only if a free agent out-ranks mine this week, upcoming byes (4 wks), league-wide hot pickups (Sleeper 48h add counts). FAAB bids only appear if `waiver_type == 2` |
 | `python3 ff.py trades` | offers worth sending (my ROS lineup gain >= 4, theirs >= -2, raw value within 1.3x), one per partner; pending offers involving me |
 | `python3 ff.py trade give Waddle for Nabers` | evaluate an explicit trade: ACCEPT / DECLINE / COIN FLIP |
 | `python3 ff.py recap` | last week: my result, all scores, top/duds, bench regret, standings, 3 templated trash-talk lines |

@@ -143,37 +143,59 @@ def _short_pl(l):
 # ------------------------------------------------------------------ waivers
 def render_waivers(ctx):
     plan = waiver_plan(ctx)
-    L = [bold("WAIVERS — claims process Wed morning; enter by Tue night") +
-         c(DIM, "  FAAB left $%d of $%d" % (plan["remaining"], config.FAAB_BUDGET))]
-    if plan["ir"]:
-        L.append(c(B + RED, "★ IR first: ") + ", ".join("%s (%s)" % (l["name"], l["inj"]) for l in plan["ir"]) + c(DIM, "  -> move to IR to free a bench slot"))
-    if not plan["claims"]:
-        L.append(c(GRN, "✔ No claim clears the bar this week. Stand pat."))
+    hdr = bold("ROSTER MOVES — week %d" % ctx.week)
+    if plan["mode"] == 2:
+        hdr += c(DIM, "  FAAB left $%d of $%d" % (plan["remaining"], config.FAAB_BUDGET))
     else:
-        L.append(c(B + YEL, "★ SUBMIT in this priority order (each with its conditional drop):"))
+        hdr += c(DIM, "  waiver priority: you are %s of %d (%s)" % (plan["priority"] or "?", plan["teams"], plan["mode_name"]))
+    L = [hdr]
+    if not plan["started"]:
+        L.append(c(DIM, "  Every unowned player is a free agent until Thursday kickoff: adds are instant, no claim needed."))
+    else:
+        L.append(c(DIM, "  Players dropped in the last 2 days sit on waivers (claims process Wed morning, submit by Tue night); everyone else is an instant add."))
+    if plan["ir"]:
+        L.append(c(B + RED, "★ IR first: ") + ", ".join("%s (%s)" % (l["name"], l["inj"]) for l in plan["ir"]) +
+                 c(DIM, "  -> Sleeper shows an IR tag next to eligible players; moving one frees a bench slot"))
+    if not plan["claims"]:
+        L.append(c(GRN, "✔ No pickup improves your roster enough to justify a drop. Stand pat."))
+    else:
+        L.append(c(B + YEL, "★ RECOMMENDED, in priority order:"))
         for i, cl in enumerate(plan["claims"], 1):
             a, d = cl["add"], cl["drop"]
+            how = "CLAIM" if cl.get("on_waivers") else "ADD NOW"
+            bid = (" bid " + c(B, "$%d" % cl["bid"])) if cl.get("bid") is not None else ""
+            L.append("  %d. %s %s %-20s %-4s%s  %s %s %-20s" % (
+                i, c(B, how), pos_c(a["pos"]), short(a["name"], 20), a["team"] or "FA", bid,
+                c(RED, "DROP"), pos_c(d["pos"]), short(d["name"], 20)))
             why = []
-            if cl["gain"] > 0:
-                why.append("lineup +%.1f" % cl["gain"])
             if a.get("trend_add"):
-                why.append("%dk adds/48h" % (a["trend_add"] // 1000) if a["trend_add"] >= 1000 else "%d adds" % a["trend_add"])
-            if a.get("trend_boost"):
-                why.append("news-driven: verify before bidding")
+                why.append("%s Sleeper managers added him in 48h%s" % (
+                    ("%dk" % (a["trend_add"] // 1000)) if a["trend_add"] >= 1000 else str(a["trend_add"]),
+                    " — breaking news; check why before you act" if a.get("trend_boost") else ""))
+            if cl["gain"] > 0:
+                why.append("projected lineup +%.1f pts/wk" % cl["gain"])
             if a.get("ros_rank"):
-                why.append("ROS #%d" % a["ros_rank"])
-            L.append("  %d. %s %-22s %-4s  bid %s  drop %s %-20s %s" % (
-                i, pos_c(a["pos"]), short(a["name"], 22), a["team"] or "FA", c(B, "$%d" % cl["bid"]),
-                pos_c(d["pos"]), short(d["name"], 20), c(DIM, "(" + ", ".join(why) + ")")))
+                why.append("rest-of-season #%d overall" % a["ros_rank"])
+            L.append(c(DIM, "     why: " + "; ".join(why)))
+    L.append(hr())
+    md = plan.get("my_def")
+    if md:
+        if plan["def_streams"]:
+            L.append(c(YEL, " DEF: ") + "%s is %s this week; better free-agent defenses: " % (md["team"], md.get("fp_pos_rank") or "unranked") +
+                     ", ".join("%s (%s, vs %s%s)" % (l["team"], l.get("fp_pos_rank") or "?", l.get("opp") or "?",
+                                                  ", opp implied %.0f pts" % l["opp_implied"] if l.get("opp_implied") else "") for l in plan["def_streams"]))
+        else:
+            L.append(c(GRN, " DEF: ") + "keep %s (%s this week per FantasyPros). No stream needed." % (md["team"], md.get("fp_pos_rank") or "ranked"))
     if plan["byes"]:
-        L.append(hr())
         L.append(c(DIM, " upcoming byes: ") + "; ".join("wk%d: %s" % (w, ", ".join("%s %s" % (l["pos"], l["name"].split()[-1] if l["pos"] != "DEF" else l["team"]) for l in ls))
                                                         for w, ls in sorted(plan["byes"].items())))
-    st = plan["streams"]
-    if st.get("DEF"):
-        L.append(c(DIM, " DEF streams this week: ") + ", ".join("%s (%s, %s)" % (l["team"], l.get("fp_pos_rank") or "?", "impl %.0f" % (l["implied"] or 0) if l.get("implied") else "") for l in st["DEF"]))
     if plan["trending"]:
-        L.append(c(DIM, " trending adds (unowned, 48h): ") + ", ".join("%s %s %s" % (l["pos"], short(l["name"], 16), c(DIM, "%dk" % (n // 1000) if n >= 1000 else str(n))) for l, n in plan["trending"][:6]))
+        L.append(c(DIM, " league-wide hot pickups (managers adding in 48h, for awareness only): ") + ", ".join(
+            "%s %s %s" % (l["pos"], short(l["name"], 16), c(DIM, "%dk" % (n // 1000) if n >= 1000 else str(n))) for l, n in plan["trending"][:6]))
+        top, n = plan["trending"][0]
+        if n >= 50000 and plan.get("cheapest_drop") and not plan["claims"]:
+            d = plan["cheapest_drop"]
+            L.append(c(DIM, "   if you want %s anyway, the drop that costs you least is %s %s (your lowest-value bench player)." % (top["name"].split()[-1], d["pos"], d["name"])))
     return "\n".join(L)
 
 

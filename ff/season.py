@@ -344,8 +344,39 @@ def upcoming_byes(ctx, lines, horizon=4):
     return out
 
 
+WAIVER_TYPES = {0: "rolling priority", 1: "reverse-standings priority", 2: "FAAB bidding"}
+
+
+def waiver_mode(ctx):
+    wt = int((ctx.league.get("settings") or {}).get("waiver_type") or 0)
+    return wt, WAIVER_TYPES.get(wt, "unknown")
+
+
+def season_started(ctx):
+    """True once the first game of the current week has kicked off (players then go through waivers)."""
+    kicks = [o["kickoff"] for o in ctx.odds.values() if o.get("kickoff")]
+    return bool(kicks) and min(kicks) <= ctx.now
+
+
+def recently_dropped(ctx, days=2):
+    """player_id -> drop timestamp for players dropped in the last `days` (they sit on waivers)."""
+    out = {}
+    cutoff = time.time() - days * 86400
+    for w in (ctx.week, max(1, ctx.week - 1)):
+        for t in ctx.api.transactions(w) or []:
+            ts = (t.get("created") or 0) / 1000
+            if ts >= cutoff:
+                for pid in (t.get("drops") or {}):
+                    out[pid] = ts
+    return out
+
+
 def waiver_plan(ctx, max_claims=4):
     my_lines = ctx.roster_lines(ctx.my_rid)
+    wt, wt_name = waiver_mode(ctx)
+    started = season_started(ctx)
+    dropped = recently_dropped(ctx) if started else {}
+    counts = Counter(l["pos"] for l in my_lines)
     my_ros = [ctx.ros.get(l["pid"], {"value": 0.0, "pos": l["pos"], "player_id": l["pid"], "name": l["name"]}) for l in my_lines]
     base = lineup_value([r for r in my_ros if "value" in r])
     remaining = config.FAAB_BUDGET - int((ctx.my.get("settings") or {}).get("waiver_budget_used") or 0)
@@ -365,6 +396,9 @@ def waiver_plan(ctx, max_claims=4):
                     continue
                 if d["pos"] in ("K", "DEF") and pos != d["pos"]:
                     continue
+                # never drop the only backup QB/TE unless the add plays that position
+                if d["pos"] in ("QB", "TE") and pos != d["pos"] and counts.get(d["pos"], 0) <= 2:
+                    continue
                 if d["pid"] in core and d["pos"] == pos and (d["ros_value"] or 0) >= (c["ros_value"] or 0):
                     continue
                 roster_after = [r for r in my_ros if r.get("player_id") != d["pid"]] + [cand_entry]
@@ -375,7 +409,8 @@ def waiver_plan(ctx, max_claims=4):
                     best = (score, gain, raw_gain, d)
             if best and (best[1] > 0.5 or (pos in ("K", "DEF") and best[2] > 1)):
                 claims.append({"add": c, "drop": best[3], "gain": round(best[1], 1), "raw_gain": round(best[2], 1),
-                               "bid": faab_bid(max(best[1], best[2] * 0.5), remaining, weeks_left)})
+                               "bid": faab_bid(max(best[1], best[2] * 0.5), remaining, weeks_left) if wt == 2 else None,
+                               "on_waivers": c["pid"] in dropped or (started and False)})
     claims.sort(key=lambda x: (-x["gain"], -x["raw_gain"]))
     # de-dup drops: one drop per claim in priority order
     used_drops, final = set(), []
@@ -386,11 +421,36 @@ def waiver_plan(ctx, max_claims=4):
         final.append(cl)
         if len(final) >= max_claims:
             break
-    return {"claims": final, "remaining": remaining, "byes": upcoming_byes(ctx, my_lines),
+    # DEF: only suggest a stream if a free agent out-ranks mine this week (FantasyPros weekly DST rank)
+    my_def = next((l for l in my_lines if l["pos"] == "DEF"), None)
+    my_def_rank = _rank_num(my_def["fp_pos_rank"]) if my_def else 99
+    def_streams = []
+    for l in fa.get("DEF", [])[:8]:
+        r = _rank_num(l["fp_pos_rank"])
+        opp = l.get("opp")
+        od = ctx.odds.get(opp) if opp else None
+        l["opp_implied"] = od.get("implied") if od else None
+        if r < my_def_rank:
+            def_streams.append(l)
+    def_streams.sort(key=lambda l: _rank_num(l["fp_pos_rank"]))
+    bench_pool = [l for l in my_lines if l["pid"] not in core and l["pos"] not in ("K", "DEF")
+                  and not (l["pos"] in ("QB", "TE") and counts.get(l["pos"], 0) <= 2)]
+    cheapest = min(bench_pool, key=lambda l: (l["ros_value"] or 0)) if bench_pool else None
+    return {"claims": final, "remaining": remaining, "byes": upcoming_byes(ctx, my_lines), "cheapest_drop": cheapest,
+            "mode": wt, "mode_name": wt_name, "started": started,
+            "priority": (ctx.my.get("settings") or {}).get("waiver_position"), "teams": len(ctx.rosters),
+            "my_def": my_def, "def_streams": def_streams[:3],
             "trending": sorted([(ctx.player_line(pid), n) for pid, n in ctx.trend_add.items() if pid not in ctx.owned],
                                key=lambda t: -t[1])[:8],
             "ir": [l for l in my_lines if l["inj"] in ("Out", "IR", "PUP") and not (ctx.my.get("reserve") or [])],
             "streams": {pos: fa.get(pos, [])[:3] for pos in ("DEF", "K", "TE")}}
+
+
+def _rank_num(pos_rank):
+    try:
+        return int(re.sub(r"[^0-9]", "", str(pos_rank or "")) or 99)
+    except ValueError:
+        return 99
 
 
 # ------------------------------------------------------------------ trades
