@@ -66,9 +66,10 @@ if draft.get("start_time"):
     picks = api.draft_picks() or []
     if picks:
         p1 = picks[0]
+        picker = (users_full.get(p1.get("picked_by")) or {}).get("display_name") or labels.get(p1.get("roster_id"), {}).get("owner", "?")
         add(ds, "draft", "CONFIRMED", "Draft complete. The board is open.",
             "%s went 1.01 to %s. %d picks, 15 rounds, one keeper allowed ==and nobody used it.==" % (
-                "%s %s" % (p1["metadata"].get("first_name", ""), p1["metadata"].get("last_name", "")), labels.get(p1["draft_slot"], {}).get("owner", "?"), len(picks)))
+                "%s %s" % (p1["metadata"].get("first_name", ""), p1["metadata"].get("last_name", "")), picker, len(picks)))
         # draft grades by ROS lineup value
         grades = []
         for r in ctx.rosters:
