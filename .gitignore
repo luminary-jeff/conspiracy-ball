@@ -5,3 +5,4 @@ data/*.txt
 __pycache__/
 *.pyc
 .DS_Store
+site/index.html

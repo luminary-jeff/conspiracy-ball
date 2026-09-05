@@ -31,8 +31,9 @@ jobs:
         run: |
           git config user.name "conspiracy-ball-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add site/data.json site/index.html
+          git add site/data.json
           git diff --cached --quiet || git commit -m "daily: refresh odds and wire $(date -u +%Y-%m-%d)"
+          git pull --rebase -X ours origin main || true
           git push
       - uses: actions/upload-pages-artifact@v3
         with:
