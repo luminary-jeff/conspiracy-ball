@@ -433,10 +433,20 @@ def waiver_plan(ctx, max_claims=4):
         if r < my_def_rank:
             def_streams.append(l)
     def_streams.sort(key=lambda l: _rank_num(l["fp_pos_rank"]))
+    rivals = top_rivals(ctx)
+    for cl in final:
+        cl["block"] = rival_impact(ctx, rivals, cl["add"]["pid"])    # what the pickup would do for my top rivals
+        cl["leak"] = rival_impact(ctx, rivals, cl["drop"]["pid"])    # what my drop would do for them
     bench_pool = [l for l in my_lines if l["pid"] not in core and l["pos"] not in ("K", "DEF")
                   and not (l["pos"] in ("QB", "TE") and counts.get(l["pos"], 0) <= 2)]
     cheapest = min(bench_pool, key=lambda l: (l["ros_value"] or 0)) if bench_pool else None
-    return {"claims": final, "remaining": remaining, "byes": upcoming_byes(ctx, my_lines), "cheapest_drop": cheapest,
+    hot = None
+    if ctx.trend_add:
+        hp = max(((n, pid) for pid, n in ctx.trend_add.items() if pid not in ctx.owned), default=None)
+        if hp and hp[0] >= 50000:
+            hot = {"pid": hp[1], "name": ctx.name(hp[1]), "block": rival_impact(ctx, rivals, hp[1]),
+                   "leak": rival_impact(ctx, rivals, cheapest["pid"]) if cheapest else []}
+    return {"claims": final, "remaining": remaining, "byes": upcoming_byes(ctx, my_lines), "cheapest_drop": cheapest, "hot": hot,
             "mode": wt, "mode_name": wt_name, "started": started,
             "priority": (ctx.my.get("settings") or {}).get("waiver_position"), "teams": len(ctx.rosters),
             "my_def": my_def, "def_streams": def_streams[:3],
@@ -444,6 +454,33 @@ def waiver_plan(ctx, max_claims=4):
                                key=lambda t: -t[1])[:8],
             "ir": [l for l in my_lines if l["inj"] in ("Out", "IR", "PUP") and not (ctx.my.get("reserve") or [])],
             "streams": {pos: fa.get(pos, [])[:3] for pos in ("DEF", "K", "TE")}}
+
+
+def top_rivals(ctx, n=2):
+    """The n strongest other rosters by rest-of-season lineup value."""
+    rows = []
+    for r in ctx.rosters:
+        if r["roster_id"] == ctx.my_rid:
+            continue
+        ents = [ctx.ros[p] for p in (r.get("players") or []) if p in ctx.ros]
+        rows.append((lineup_value(ents), r["roster_id"], ents))
+    rows.sort(reverse=True)
+    return [(rid, ents, lv) for lv, rid, ents in rows[:n]]
+
+
+def rival_impact(ctx, rivals, pid):
+    """For each rival: how much their ROS lineup improves if they add `pid` (dropping their worst bench piece)."""
+    e = ctx.ros.get(pid)
+    out = []
+    for rid, ents, lv in rivals:
+        if not e:
+            out.append((ctx.owner_name(rid), 0.0))
+            continue
+        pool = [x for x in ents if x["pos"] not in ("K", "DEF")]
+        worst = min(pool, key=lambda x: x["value"]) if pool else None
+        after = [x for x in ents if not worst or x["player_id"] != worst["player_id"]] + [e]
+        out.append((ctx.owner_name(rid), round(lineup_value(after) - lv, 1)))
+    return out
 
 
 def _rank_num(pos_rank):

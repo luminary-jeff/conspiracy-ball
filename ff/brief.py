@@ -177,6 +177,7 @@ def render_waivers(ctx):
             if a.get("ros_rank"):
                 why.append("rest-of-season #%d overall" % a["ros_rank"])
             L.append(c(DIM, "     why: " + "; ".join(why)))
+            L.append(c(DIM, "     rivals: " + _rivals_line(cl["block"], cl["leak"], d)))
     L.append(hr())
     md = plan.get("my_def")
     if md:
@@ -196,7 +197,20 @@ def render_waivers(ctx):
         if n >= 50000 and plan.get("cheapest_drop") and not plan["claims"]:
             d = plan["cheapest_drop"]
             L.append(c(DIM, "   if you want %s anyway, the drop that costs you least is %s %s (your lowest-value bench player)." % (top["name"].split()[-1], d["pos"], d["name"])))
+            if plan.get("hot"):
+                L.append(c(DIM, "   rivals: " + _rivals_line(plan["hot"]["block"], plan["hot"]["leak"], d)))
     return "\n".join(L)
+
+
+def _rivals_line(block, leak, drop):
+    """'blocking value: Tua +0.0, Andy +0.0 · your drop (Robinson) would help them: Tua +0.4, Andy +0.4'"""
+    fmt = lambda pairs: ", ".join("%s %+.1f" % (short(o, 10), g) for o, g in pairs)
+    bmax = max((g for _, g in block), default=0)
+    lmax = max((g for _, g in leak), default=0)
+    verdict = "no block value" if bmax < 1 else ("worth blocking" if bmax >= 4 else "minor block value")
+    leak_v = "safe to drop" if lmax < 1 else ("careful: helps a rival" if lmax >= 4 else "small gift to a rival")
+    return "if a top-2 rival grabs the pickup: %s (%s) · if they grab your drop %s: %s (%s)" % (
+        fmt(block), verdict, drop["name"].split()[-1], fmt(leak), leak_v)
 
 
 # ------------------------------------------------------------------ trades
