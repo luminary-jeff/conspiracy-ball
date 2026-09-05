@@ -1,0 +1,206 @@
+<title>Conspiracy Ball</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Special+Elite&family=Libre+Franklin:ital,wght@0,400;0,500;0,700;1,400&family=Courier+Prime:wght@400;700&display=swap">
+<style>
+:root{
+  --paper:#E4D8B4; --sheet:#F2EAD3; --sheet-2:#EBE1C4; --ink:#1B1813; --ink-2:#514A3D; --ink-3:#847A66;
+  --rule:#B9AD8A; --stamp:#B3261E; --pen:#1E3D6B; --hilite:rgba(255,222,89,.55); --tape:rgba(255,236,170,.75);
+  --good:#2E6B3A; --bad:#9C2B21; --shadow:0 1px 0 rgba(60,45,20,.18), 0 8px 24px -18px rgba(60,45,20,.6);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#1C1912; --sheet:#26221A; --sheet-2:#2E2920; --ink:#EDE4CC; --ink-2:#BFB49A; --ink-3:#8A8069;
+    --rule:#4A4335; --stamp:#E25246; --pen:#8FB4E3; --hilite:rgba(255,205,60,.28); --tape:rgba(255,236,170,.22);
+    --good:#7BC58A; --bad:#EF7A6E; --shadow:0 1px 0 rgba(0,0,0,.4), 0 10px 26px -18px rgba(0,0,0,.9);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#1C1912; --sheet:#26221A; --sheet-2:#2E2920; --ink:#EDE4CC; --ink-2:#BFB49A; --ink-3:#8A8069;
+  --rule:#4A4335; --stamp:#E25246; --pen:#8FB4E3; --hilite:rgba(255,205,60,.28); --tape:rgba(255,236,170,.22);
+  --good:#7BC58A; --bad:#EF7A6E; --shadow:0 1px 0 rgba(0,0,0,.4), 0 10px 26px -18px rgba(0,0,0,.9);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:"Libre Franklin",Franklin Gothic,Arial,sans-serif;font-size:15px;line-height:1.5;
+  background-image:radial-gradient(circle at 20% 0%, rgba(255,255,255,.18), transparent 55%);}
+a{color:var(--pen)}
+.type{font-family:"Special Elite","Courier Prime",Courier,monospace}
+.mono{font-family:"Courier Prime",Courier,monospace;font-variant-numeric:tabular-nums}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 22px 60px}
+
+/* masthead */
+.mast{display:grid;grid-template-columns:1fr auto;gap:18px;align-items:end;padding-bottom:14px;border-bottom:3px double var(--rule)}
+.mast h1{margin:0;font-family:"Special Elite",monospace;font-weight:400;font-size:clamp(34px,6vw,64px);letter-spacing:.02em;line-height:.95;text-wrap:balance}
+.mast h1 span{display:block;font-size:.34em;letter-spacing:.28em;color:var(--ink-2);margin-bottom:8px;text-transform:uppercase}
+.mast .sub{margin:10px 0 0;color:var(--ink-2);max-width:62ch}
+.redact{background:var(--ink);color:var(--ink);border-radius:1px;padding:0 .3em;user-select:none}
+mark.hl{background:none;color:inherit;font-style:italic;font-weight:500;padding:0 .15em;
+  background-image:linear-gradient(104deg, transparent 2%, var(--hilite) 4%, var(--hilite) 96%, transparent 98%);
+  background-size:100% 78%;background-repeat:no-repeat;background-position:0 65%;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+.stamp{font-family:"Special Elite",monospace;text-transform:uppercase;letter-spacing:.12em;color:var(--stamp);border:3px solid var(--stamp);
+  padding:6px 12px;transform:rotate(-4deg);display:inline-block;font-size:15px;line-height:1.1;opacity:.92}
+.stamp small{display:block;font-size:.72em;letter-spacing:.2em;margin-top:2px}
+
+/* folder tabs */
+.tabs{display:flex;gap:6px;margin:26px 0 0;padding:0 10px;border-bottom:2px solid var(--rule)}
+.tab{font-family:"Special Elite",monospace;font-size:15px;letter-spacing:.1em;text-transform:uppercase;background:var(--sheet-2);color:var(--ink-2);border:1px solid var(--rule);border-bottom:none;
+  border-radius:8px 8px 0 0;padding:9px 18px 7px;cursor:pointer;position:relative;top:2px}
+.tab[aria-selected="true"]{background:var(--sheet);color:var(--ink);top:2px;border-bottom:2px solid var(--sheet)}
+.tab:focus-visible{outline:2px solid var(--pen);outline-offset:2px}
+.panel{background:var(--sheet);border:1px solid var(--rule);border-top:none;padding:22px;box-shadow:var(--shadow)}
+.panel[hidden]{display:none}
+
+/* grid */
+.grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(320px,1fr);gap:26px;align-items:start}
+@media (max-width:860px){.grid{grid-template-columns:1fr}.mast{grid-template-columns:1fr}.mast .stamp{justify-self:start}}
+.eyebrow{font-family:"Special Elite",monospace;font-size:12px;letter-spacing:.26em;text-transform:uppercase;color:var(--ink-2);margin:0 0 10px;display:flex;gap:10px;align-items:baseline}
+.eyebrow b{color:var(--ink);font-weight:400}
+.eyebrow .meta{margin-left:auto;font-size:11px;letter-spacing:.14em;color:var(--ink-3)}
+
+/* wire */
+.wire{list-style:none;margin:0;padding:0;border-top:1px solid var(--rule)}
+.wire li{display:grid;grid-template-columns:78px 1fr;gap:14px;padding:14px 0;border-bottom:1px dashed var(--rule)}
+.wire time{font-family:"Courier Prime",monospace;font-size:12px;color:var(--ink-3);line-height:1.35;padding-top:3px}
+.wire time b{display:block;color:var(--ink-2);font-weight:700}
+.wire h3{margin:0 0 4px;font-size:16px;font-weight:700;line-height:1.3;text-wrap:balance}
+.wire p{margin:0;color:var(--ink-2);max-width:66ch}
+.tag{font-family:"Special Elite",monospace;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;display:inline-block;padding:1px 6px 0;border:1.5px solid currentColor;margin:0 0 6px;transform:rotate(-1.5deg)}
+.tag.CONFIRMED{color:var(--pen)} .tag.SOURCES{color:var(--ink-2)} .tag.LINE{color:var(--stamp)} .tag.GRASSY{color:var(--stamp)} .tag.UNVERIFIED{color:var(--ink-3)}
+.wire li:first-child h3::after{content:"NEW";font-family:"Special Elite",monospace;font-size:10px;letter-spacing:.2em;color:var(--stamp);margin-left:8px;vertical-align:middle}
+
+/* the book */
+.book{position:sticky;top:14px;background:var(--sheet-2);border:1px solid var(--rule);padding:16px 16px 12px;box-shadow:var(--shadow)}
+.book::before{content:"";position:absolute;left:50%;top:-9px;width:96px;height:20px;margin-left:-48px;background:var(--tape);transform:rotate(-2deg)}
+.book table{width:100%;border-collapse:collapse;font-family:"Courier Prime",monospace;font-variant-numeric:tabular-nums;font-size:13.5px}
+.book th{font-family:"Special Elite",monospace;font-weight:400;font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-3);text-align:right;padding:4px 6px;border-bottom:1px solid var(--rule)}
+.book th:first-child,.book td:first-child{text-align:left}
+.book td{padding:6px 6px;border-bottom:1px dotted var(--rule);text-align:right;white-space:nowrap}
+.book tr.me td:first-child{background:linear-gradient(transparent 20%, var(--hilite) 22%, var(--hilite) 85%, transparent 87%)}
+.book td.odds{font-weight:700;color:var(--ink)}
+.book tr.fav td.odds{color:var(--stamp)}
+.move{font-size:12px}.move.up{color:var(--good)}.move.down{color:var(--bad)}.move.flat{color:var(--ink-3)}
+.book .foot{font-family:"Special Elite",monospace;font-size:11px;letter-spacing:.08em;color:var(--ink-3);margin:10px 0 0;line-height:1.5}
+.name{font-family:"Libre Franklin",sans-serif;font-weight:500;max-width:150px;overflow:hidden;text-overflow:ellipsis;display:inline-block;vertical-align:bottom}
+.name small{display:block;font-weight:400;color:var(--ink-3);font-size:11px;line-height:1.2}
+
+/* standings sheet */
+.sheet{margin-top:30px;overflow-x:auto}
+.sheet table{width:100%;border-collapse:collapse;font-family:"Courier Prime",monospace;font-variant-numeric:tabular-nums;font-size:13.5px}
+.sheet th{font-family:"Special Elite",monospace;font-weight:400;font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-3);text-align:right;padding:6px 8px;border-bottom:2px solid var(--rule)}
+.sheet th:nth-child(-n+2),.sheet td:nth-child(-n+2){text-align:left}
+.sheet td{padding:7px 8px;border-bottom:1px solid var(--rule);text-align:right;white-space:nowrap}
+.sheet tr.me td{background:var(--hilite)}
+.sheet .rec{font-family:"Courier Prime",monospace;letter-spacing:.06em}
+.rec .W{color:var(--good)} .rec .L{color:var(--bad)}
+
+/* archive */
+.champ{display:grid;grid-template-columns:auto 1fr;gap:22px;align-items:center;padding:14px 0 22px;border-bottom:1px dashed var(--rule);margin-bottom:8px}
+.champ .stamp{font-size:19px;transform:rotate(-7deg)}
+.champ h2{margin:0;font-size:24px;font-weight:700;line-height:1.2;text-wrap:balance}
+.champ p{margin:6px 0 0;color:var(--ink-2);max-width:60ch}
+@media (max-width:640px){.champ{grid-template-columns:1fr}}
+
+footer{margin-top:26px;font-family:"Special Elite",monospace;font-size:11.5px;letter-spacing:.1em;color:var(--ink-3);text-transform:uppercase;display:flex;flex-wrap:wrap;gap:6px 22px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div class="wrap">
+  <header class="mast">
+    <div>
+      <h1><span>Case file · Season II · 12 subjects under surveillance</span>Conspiracy Ball</h1>
+      <p class="sub">Daily intelligence on a 12-team half-PPR league. Odds are cooked from 20,000 simulated seasons; every manager is assumed to set their best lineup, <mark class="hl">which is the least believable assumption on this page.</mark> Commissioner: <span class="redact">Chad. It was Chad.</span></p>
+    </div>
+    <div class="stamp" id="stamp">Unverified<small id="stamp-sub">updated —</small></div>
+  </header>
+
+  <div class="tabs" role="tablist" id="tabs"></div>
+  <div id="panels"></div>
+
+  <footer>
+    <span id="upd"></span>
+    <span>Sources: Sleeper · RotoWire projections · FantasyPros consensus · <mark class="hl">a guy who knows a guy</mark></span>
+    <span>This page only observes. Make your moves in the Sleeper app.</span>
+  </footer>
+</div>
+
+<script id="data" type="application/json">__DATA__</script>
+<script>
+(function(){
+  const inline = JSON.parse(document.getElementById('data').textContent);
+  const fmtPct = p => (p*100).toFixed(p >= .1 ? 0 : 1) + '%';
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const fmtDate = iso => { const d = new Date(iso); return {day: d.toLocaleDateString(undefined,{month:'short',day:'2-digit'}).toUpperCase(), time: d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'})}; };
+  const tagClass = t => (t||'').split(' ')[0];
+  const hl = s => esc(s).replace(/==(.+?)==/g, '<mark class="hl">$1</mark>');
+
+  function render(data){
+    const seasons = Object.keys(data.seasons).sort().reverse();
+    const tabs = document.getElementById('tabs'), panels = document.getElementById('panels');
+    tabs.innerHTML = ''; panels.innerHTML = '';
+    const g = new Date(data.generated);
+    document.getElementById('upd').textContent = 'Last updated ' + g.toLocaleString(undefined,{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+    document.getElementById('stamp').firstChild.textContent = 'Week ' + data.week + ' file';
+    document.getElementById('stamp-sub').textContent = 'updated ' + g.toLocaleDateString(undefined,{month:'short',day:'numeric'});
+    seasons.forEach((s, i) => {
+      const sd = data.seasons[s];
+      const tab = document.createElement('button');
+      tab.className = 'tab'; tab.setAttribute('role','tab'); tab.id = 'tab-'+s; tab.textContent = (s === data.season ? 'Season II · ' : 'Season I · ') + s;
+      tab.setAttribute('aria-selected', i === 0 ? 'true' : 'false');
+      tab.onclick = () => select(s);
+      tabs.appendChild(tab);
+      const panel = document.createElement('section');
+      panel.className = 'panel'; panel.id = 'panel-'+s; panel.setAttribute('role','tabpanel'); panel.hidden = i !== 0;
+      panel.innerHTML = sd.status === 'complete' ? renderArchive(sd) : renderLive(sd, data);
+      panels.appendChild(panel);
+    });
+    function select(s){ seasons.forEach(x => { document.getElementById('tab-'+x).setAttribute('aria-selected', x===s?'true':'false'); document.getElementById('panel-'+x).hidden = x!==s; }); try{localStorage.setItem('cb-tab', s);}catch(e){} }
+    try{ const saved = localStorage.getItem('cb-tab'); if (saved && data.seasons[saved]) select(saved); }catch(e){}
+  }
+
+  function renderLive(sd, data){
+    const book = sd.book.map((b, i) => `<tr class="${b.me?'me':''} ${i===0?'fav':''}">
+      <td><span class="name">${esc(b.owner)}<small>${esc(b.team !== b.owner ? b.team : '')}</small></span></td>
+      <td class="odds">${esc(b.title_odds)}</td><td>${fmtPct(b.playoff_p)}</td><td>${b.exp_wins.toFixed(1)}</td>
+      <td class="move ${b.move>0?'up':b.move<0?'down':'flat'}">${b.move===0?'—':(b.move>0?'▲':'▼')+Math.abs(b.move).toFixed(1)}</td></tr>`).join('');
+    const wire = sd.wire.map(w => { const d = fmtDate(w.date); return `<li>
+      <time datetime="${esc(w.date)}"><b>${d.day}</b>${d.time}</time>
+      <div><span class="tag ${tagClass(w.tag)}">${esc(w.tag)}</span><h3>${hl(w.headline)}</h3><p>${hl(w.body)}</p></div></li>`; }).join('');
+    const st = sd.standings.map((b, i) => `<tr class="${b.me?'me':''}"><td>${i+1}</td><td><span class="name">${esc(b.owner)}<small>${esc(b.team !== b.owner ? b.team : '')}</small></span></td>
+      <td>${b.wins}-${b.losses}</td><td>${b.pf.toFixed(1)}</td><td>${b.pts_wk.toFixed(1)}</td><td>${b.wk_proj.toFixed(1)}</td><td>${fmtPct(b.bye_p)}</td></tr>`).join('');
+    return `<div class="grid">
+      <div>
+        <p class="eyebrow"><b>The Wire</b> newest first <span class="meta">${sd.wire.length} entries on file</span></p>
+        <ul class="wire">${wire || '<li><time></time><div><p>Nothing on file yet. The season starts Wednesday night.</p></div></li>'}</ul>
+      </div>
+      <aside class="book">
+        <p class="eyebrow"><b>The Book</b> <span class="meta">offshore · unlicensed</span></p>
+        <table><thead><tr><th>Subject</th><th>Title</th><th>Playoffs</th><th>Exp W</th><th>Move</th></tr></thead><tbody>${book}</tbody></table>
+        <p class="foot">American odds on winning the whole thing, 6% house edge <mark class="hl">because the house has bills.</mark> Move = change in title probability (points) since the last update. Highlighted row is the site owner, <mark class="hl">who is definitely not shading the line.</mark></p>
+      </aside>
+    </div>
+    <div class="sheet">
+      <p class="eyebrow"><b>Surveillance Log</b> standings · week ${sd.week} <span class="meta">PF = points for · pts/wk = projected rest of season · bye = odds of a first-round bye</span></p>
+      <table><thead><tr><th>#</th><th>Subject</th><th>Record</th><th>PF</th><th>Pts/wk</th><th>Wk ${sd.week} proj</th><th>Bye</th></tr></thead><tbody>${st}</tbody></table>
+    </div>`;
+  }
+
+  function renderArchive(sd){
+    const rec = r => (r||'').split('').map(c => `<span class="${c}">${c}</span>`).join('');
+    const st = sd.standings.map((b, i) => `<tr class="${b.me?'me':''}"><td>${i+1}</td><td><span class="name">${esc(b.owner)}<small>${esc(b.team !== b.owner ? b.team : '')}</small></span></td>
+      <td>${b.wins}-${b.losses}</td><td>${b.pf.toFixed(1)}</td><td class="rec">${rec(b.record)}</td></tr>`).join('');
+    const c = sd.champion || {}, ru = sd.runner_up || {}, th = sd.third || {}, br = sd.best_record || {};
+    return `<div class="champ">
+        <div class="stamp">Case closed<small>Season I · ${esc(sd.season)}</small></div>
+        <div><h2>${esc(c.owner || 'Unknown')} walked away with it.</h2>
+        <p>${esc(c.team && c.team !== c.owner ? c.team + ' ' : '')}beat ${esc(ru.owner || '?')} in the final; ${esc(th.owner || '?')} took third. ${esc(br.owner || '?')} had the best regular season at ${br.wins}-${br.losses} and has asked that this be noted in the record. <mark class="hl">It has been noted.</mark></p></div>
+      </div>
+      <div class="sheet" style="margin-top:8px">
+        <p class="eyebrow"><b>Final standings</b> regular season <span class="meta">PF = points for · 14 weeks, W/L in order</span></p>
+        <table><thead><tr><th>#</th><th>Subject</th><th>Record</th><th>PF</th><th>Week by week</th></tr></thead><tbody>${st}</tbody></table>
+      </div>`;
+  }
+
+  render(inline);
+  // GitHub Pages mode: prefer a fresher data.json next to this file, if one exists.
+  fetch('data.json', {cache:'no-store'}).then(r => r.ok ? r.json() : null).then(d => { if (d && d.generated && d.generated > inline.generated) render(d); }).catch(() => {});
+})();
+</script>
