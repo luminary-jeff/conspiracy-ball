@@ -2,7 +2,9 @@ name: Daily case file
 
 on:
   schedule:
-    - cron: "17 12 * * *"     # 12:17 UTC daily (8:17 AM ET) — after Tuesday/Wednesday waivers and Monday night scores
+    # GitHub runs cron on a best-effort basis (often hours late, sometimes skipped), so ask twice.
+    - cron: "17 12 * * *"     # 12:17 UTC daily (8:17 AM ET) — after Wednesday waivers and Monday night scores
+    - cron: "41 16 * * *"     # 16:41 UTC fallback (12:41 PM ET)
   workflow_dispatch:
 
 permissions:
