@@ -6,3 +6,4 @@ __pycache__/
 *.pyc
 .DS_Store
 site/index.html
+.claude/scheduled_tasks.lock
