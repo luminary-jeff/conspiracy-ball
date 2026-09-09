@@ -23,7 +23,8 @@ from .util import norm_team, warn
 
 SLOT_ORDER = ["QB", "RB", "RB", "WR", "WR", "TE", "FLEX", "K", "DEF"]
 INJ_MULT = {"Out": 0.0, "IR": 0.0, "PUP": 0.0, "Sus": 0.0, "NA": 0.0, "Doubtful": 0.3, "Questionable": 0.9}
-TEAM_SD = 20.0          # weekly team score standard deviation (points), for win probability
+TEAM_SD = 26.0          # weekly team score standard deviation (points); difference of two teams ~ 37 pts,
+                        # which reproduces Sleeper's own win probabilities (10-pt edge ~ 60%)
 
 
 # ------------------------------------------------------------------ extra sources
@@ -247,7 +248,11 @@ def lineup_moves(cur, opt, min_gain=1.0):
 
 
 def win_probability(my_total, opp_total):
-    return 0.5 * (1 + math.erf((my_total - opp_total) / (TEAM_SD * math.sqrt(2)) / math.sqrt(1)))
+    """P(my score > opp score) with both scores ~ Normal(proj, TEAM_SD): the difference has
+    sd TEAM_SD*sqrt(2), and Phi(z) = 0.5*(1+erf(z/sqrt(2)))."""
+    diff_sd = TEAM_SD * math.sqrt(2)
+    z = (my_total - opp_total) / diff_sd
+    return 0.5 * (1 + math.erf(z / math.sqrt(2)))
 
 
 def matchup_for(ctx, rid):
