@@ -22,6 +22,7 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from research import common as C  # noqa: E402
 from research import features as F  # noqa: E402
+from research import props  # noqa: E402
 from research.collect import pull  # noqa: E402
 from research.evaluate import fit_ridge, predict  # noqa: E402
 from ff.sleeper import Sleeper  # noqa: E402
@@ -47,12 +48,16 @@ def snapshot(season, week):
 
 
 def leak_check(season):
-    """Compare every saved pre-game projection snapshot with what the endpoint serves now."""
+    """For FINISHED weeks only: compare the last pre-game snapshot with what the endpoint serves now.
+    Some drift is honest (news between the snapshot and a later kickoff: a player ruled out drops to 0 and
+    his teammates rise). A leak would look different: many players changed, and changed TOWARD what they scored."""
     s = Sleeper(data_dir=C.RAW_DIR)
+    actual = {(r["week"], r["pid"]): r["actual"] for r in F.load_rows() if r["season"] == season}
+    done = set(w for w, _ in actual)
     for d in sorted(glob.glob(os.path.join(C.SNAP_DIR, "%s_wk*" % season))):
         week = int(d[-2:])
         snaps = sorted(glob.glob(os.path.join(d, "projections_*.json")))
-        if not snaps:
+        if not snaps or week not in done:
             continue
         with open(snaps[-1]) as f:
             old = {r["player_id"]: (r.get("stats") or {}).get("pts_half_ppr") or 0.0 for r in json.load(f)["data"]}
@@ -60,8 +65,15 @@ def leak_check(season):
                for r in pull(s, "projections", season, week, 0)}
         both = [p for p in old if p in now and old[p] >= 5]      # the research pull has no kickers
         big = [p for p in both if abs(old[p] - now[p]) > 0.5]
-        print("leak check week %d: %d of %d projected players differ by more than 0.5 from the snapshot %s"
-              % (week, len(big), len(both), os.path.basename(snaps[-1])))
+        toward = [p for p in big if (week, p) in actual and (now[p] - old[p]) * (actual[(week, p)] - old[p]) > 0]
+        scored = [p for p in big if (week, p) in actual]
+        verdict = "LEAK SUSPECTED" if (len(big) > 0.25 * len(both) and len(toward) > 0.7 * max(1, len(scored))) else "ok"
+        print("leak check week %d: %d of %d players changed by more than 0.5 since the pre-game snapshot %s; "
+              "%d of %d moved toward the actual score -> %s"
+              % (week, len(big), len(both), os.path.basename(snaps[-1]), len(toward), len(scored), verdict))
+    if not done & set(int(d[-2:]) for d in glob.glob(os.path.join(C.SNAP_DIR, "%s_wk*" % season))
+                      if glob.glob(os.path.join(d, "projections_*.json"))):
+        print("leak check: no finished week has a pre-game projection snapshot yet (first one: week 2)")
 
 
 def scoreboard(season):
@@ -96,6 +108,9 @@ def main():
     season = C.LIVE_SEASON
     week = int((Sleeper().state() or {}).get("week") or 1)
     snapshot(season, week)
+    for w in (week - 1, week):                   # player prop lines; pre-kickoff runs capture the true close
+        if w >= 1:
+            props.snapshot(season, w)
     if args.snapshot_only:
         return
     for script in ("collect.py", "evaluate.py", "report.py"):
@@ -104,6 +119,7 @@ def main():
         print("%s: %s" % (script, "ok" if r.returncode == 0 else "FAILED\n" + r.stderr[-800:]))
     leak_check(season)
     scoreboard(season)
+    props.evaluate()
 
 
 if __name__ == "__main__":

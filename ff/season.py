@@ -66,8 +66,11 @@ def fetch_espn_odds(week, season=config.SEASON):
     api = Sleeper()
     api.session.headers.update({"User-Agent": "curl/8.4.0"})   # ESPN 403s browser-like AND custom UAs; curl's passes
     url = "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard"
-    data, _ = api.get_cached(url, "espn_wk%s.json" % week, 2 * 3600,
-                             params={"week": week, "seasontype": 2, "dates": season}, default={})
+    params = {"week": week, "seasontype": 2, "dates": season}
+    data, _ = api.get_cached(url, "espn_wk%s.json" % week, 2 * 3600, params=params, default={})
+    if _games_in_progress(data):
+        # a game is live or just ended: re-check every 10 min so finals land in the preview promptly
+        data, _ = api.get_cached(url, "espn_wk%s.json" % week, 600, params=params, default=data or {})
     out = {}
     for ev in (data or {}).get("events", []):
         try:
@@ -86,12 +89,26 @@ def fetch_espn_odds(week, season=config.SEASON):
                 implied = None
                 if total is not None and line is not None:
                     implied = total / 2 + (abs(line) / 2 if team == fav else -abs(line) / 2)
+                stype = (comp.get("status") or {}).get("type") or {}
                 out[team] = {"opp": opp, "home": side == "home", "kickoff": kick, "total": total,
                              "spread": (line if team == fav else (-line if line is not None else None)),
-                             "implied": implied, "status": (comp.get("status") or {}).get("type", {}).get("name")}
+                             "implied": implied, "status": stype.get("name"), "final": bool(stype.get("completed"))}
         except Exception:
             continue
     return out
+
+
+def _games_in_progress(data):
+    now = datetime.now(timezone.utc)
+    for ev in (data or {}).get("events", []):
+        try:
+            kick = datetime.strptime(ev["date"], "%Y-%m-%dT%H:%MZ").replace(tzinfo=timezone.utc)
+            done = bool((ev["competitions"][0].get("status") or {}).get("type", {}).get("completed"))
+            if kick <= now and not done:
+                return True
+        except Exception:
+            continue
+    return False
 
 
 # ------------------------------------------------------------------ context
@@ -114,9 +131,21 @@ class SeasonContext:
         self.players, _ = self.api.players()
         self.players = self.players or {}
         self.matchups = self.api.matchups(self.week) or []
+        # league-scored actuals for this week: Sleeper's own numbers for rostered players (matchups),
+        # our scoring of the stats feed for everyone else. Only used once a player's game is FINAL.
+        self.actual = {}
+        for m in self.matchups:
+            for pid, pts in (m.get("players_points") or {}).items():
+                self.actual[str(pid)] = float(pts or 0)
         sched, _ = self.api.schedule(self.season)
         self.byes = bye_weeks(sched)
         self.odds = fetch_espn_odds(self.week, self.season)
+        stats, _ = self.api.stats_week(self.week, self.season)
+        for s in stats or []:
+            pid = str(s.get("player_id"))
+            if pid not in self.actual:
+                pos = ((s.get("player") or {}).get("position")) or (self.players.get(pid) or {}).get("position")
+                self.actual[pid] = league_points(s.get("stats") or {}, self.scoring, "RB" if pos == "FB" else pos)
         # weekly projections
         proj, _ = self.api.projections_week(self.week, self.season)
         self.wproj = {}
@@ -179,10 +208,16 @@ class SeasonContext:
         mult = 0.0 if bye else INJ_MULT.get(inj, 1.0)
         kick = od.get("kickoff")
         locked = bool(kick and kick <= self.now)
+        final = bool(od.get("final")) and pid in self.actual
+        if final:
+            # game over: the box score is the number, whatever the projection or injury tag said.
+            # In-progress games deliberately stay on projection (no intra-game swings).
+            proj, mult = self.actual[pid], 1.0
         fp = self.fp_week.get(pid) or {}
         ros = self.ros.get(pid) or {}
         return {"pid": pid, "name": self.name(pid), "pos": pos, "team": team, "opp": wp.get("opp") or od.get("opp"),
                 "proj": proj, "eff": round(proj * mult, 2), "inj": inj, "bye": bye, "kickoff": kick, "locked": locked,
+                "final": final,
                 "implied": od.get("implied"), "spread": od.get("spread"), "fp_rank": fp.get("rank"),
                 "fp_pos_rank": fp.get("pos_rank"), "grade": fp.get("grade"), "fp_std": fp.get("std") or 0.0,
                 "ros_value": ros.get("value"), "ros_rank": ros.get("rank"), "ros_pts": ros.get("pts"),
@@ -194,16 +229,26 @@ class SeasonContext:
 
 
 # ------------------------------------------------------------------ lineup
-def optimal_lineup(lines, tilt=0.0):
+def optimal_lineup(lines, tilt=0.0, current=None):
     """Best legal lineup by effective projection. tilt>0 favors ceiling (underdog),
-    tilt<0 favors floor. Returns dict slot_index -> line and total."""
+    tilt<0 favors floor. `current` (the lineup as set in Sleeper) pins locked players:
+    a locked starter stays in his slot and a locked bench player cannot come in — Sleeper
+    does not allow either move once a game has kicked off. Returns (slots, total)."""
     def score(l):
         return l["eff"] + tilt * (l["fp_std"] or 3.0)
-    pool = sorted([l for l in lines if l["eff"] > 0], key=score, reverse=True)
-    used = set()
     out = [None] * len(SLOT_ORDER)
+    used = set()
+    stuck = set()
+    for i, l in enumerate(current or []):
+        if l and l["locked"]:
+            out[i] = l
+            used.add(l["pid"])
+    if current:
+        stuck = {l["pid"] for l in lines if l["locked"] and l["pid"] not in used}
+    pool = sorted([l for l in lines if (l["eff"] > 0 or l.get("final")) and l["pid"] not in stuck],
+                  key=score, reverse=True)
     for i, slot in enumerate(SLOT_ORDER):
-        if slot == "FLEX":
+        if slot == "FLEX" or out[i] is not None:
             continue
         for l in pool:
             if l["pid"] not in used and l["pos"] == slot:
@@ -211,11 +256,12 @@ def optimal_lineup(lines, tilt=0.0):
                 used.add(l["pid"])
                 break
     fi = SLOT_ORDER.index("FLEX")
-    for l in pool:
-        if l["pid"] not in used and l["pos"] in config.FLEX_ELIGIBLE:
-            out[fi] = l
-            used.add(l["pid"])
-            break
+    if out[fi] is None:
+        for l in pool:
+            if l["pid"] not in used and l["pos"] in config.FLEX_ELIGIBLE:
+                out[fi] = l
+                used.add(l["pid"])
+                break
     total = sum(l["eff"] for l in out if l)
     return out, total
 
@@ -228,6 +274,45 @@ def current_lineup(ctx, rid):
         pid = starters[i] if i < len(starters) else None
         out.append(ctx.player_line(pid) if pid and pid != "0" else None)
     return out
+
+
+# How often the higher weekly projection actually scores more, by projection gap. Measured on 2022-2026
+# RotoWire projections vs actuals in this league's scoring (research/hitrates.py, 2026-09-18). Each entry is
+# (gap below, hit rate). The tool never imports research/, so the numbers live here.
+CLOSE_CALL_HIT = {
+    "QB": [(1.0, 0.53), (2.5, 0.56), (4.5, 0.60)],
+    "RB": [(1.0, 0.53), (2.5, 0.56), (4.5, 0.63)],
+    "WR": [(1.0, 0.52), (2.5, 0.58), (4.5, 0.64)],
+    "TE": [(1.0, 0.53), (2.5, 0.60), (4.5, 0.67)],
+    "FLEX": [(1.0, 0.52), (2.5, 0.58), (4.5, 0.65)],
+}
+
+
+def close_calls(opt, bench, max_gap=4.5):
+    """Starter-vs-bench decisions that are still open and closer than max_gap points.
+    Returns [(slot, starter, alternative, gap, hit_rate)], tightest first. Locked or finished players are
+    skipped on either side: the line is about calls Jeff can still change. K/DEF have no history here."""
+    out = []
+    for slot, st in zip(SLOT_ORDER, opt):
+        if not st or st["locked"] or slot in ("K", "DEF"):
+            continue
+        ok = config.FLEX_ELIGIBLE if slot == "FLEX" else (slot,)
+        alts = [b for b in bench if b["pos"] in ok and not b["locked"] and b["eff"] > 0]
+        if not alts:
+            continue
+        alt = max(alts, key=lambda b: b["eff"])
+        gap = st["eff"] - alt["eff"]
+        if gap < 0 or gap >= max_gap:
+            continue
+        key = st["pos"] if st["pos"] == alt["pos"] else "FLEX"       # cross-position calls only arise at FLEX
+        hit = next(h for g, h in CLOSE_CALL_HIT[key] if gap < g)
+        out.append((slot, st, alt, gap, hit))
+    seen, uniq = set(), []
+    for row in sorted(out, key=lambda r: r[3]):
+        if row[2]["pid"] not in seen:          # one line per bench alternative
+            seen.add(row[2]["pid"])
+            uniq.append(row)
+    return uniq
 
 
 def lineup_moves(cur, opt, min_gain=1.0):
@@ -247,12 +332,29 @@ def lineup_moves(cur, opt, min_gain=1.0):
     return moves
 
 
-def win_probability(my_total, opp_total):
+def win_probability(my_total, opp_total, my_live=1.0, opp_live=1.0):
     """P(my score > opp score) with both scores ~ Normal(proj, TEAM_SD): the difference has
-    sd TEAM_SD*sqrt(2), and Phi(z) = 0.5*(1+erf(z/sqrt(2)))."""
-    diff_sd = TEAM_SD * math.sqrt(2)
+    sd TEAM_SD*sqrt(2), and Phi(z) = 0.5*(1+erf(z/sqrt(2))). my_live/opp_live are the share of
+    each lineup still to be played (finished games carry no variance); 1.0 = nothing final yet."""
+    diff_sd = TEAM_SD * math.sqrt(max(my_live, 0.0) + max(opp_live, 0.0))
+    if diff_sd < 1e-6:
+        return 1.0 if my_total > opp_total else (0.5 if my_total == opp_total else 0.0)
     z = (my_total - opp_total) / diff_sd
     return 0.5 * (1 + math.erf(z / math.sqrt(2)))
+
+
+def live_share(lines):
+    """Fraction of a lineup's points still to be played (finished games excluded)."""
+    tot = sum(l["eff"] for l in lines if l)
+    if tot <= 0:
+        return 1.0
+    return sum(l["eff"] for l in lines if l and not l.get("final")) / tot
+
+
+def locked_in(lines):
+    """(count, points) of lineup slots whose games are final."""
+    done = [l for l in lines if l and l.get("final")]
+    return len(done), sum(l["eff"] for l in done)
 
 
 def matchup_for(ctx, rid):
@@ -275,7 +377,7 @@ def team_projection(ctx, rid):
     out = []
     for i, slot in enumerate(SLOT_ORDER):
         l = cur[i]
-        if l and l["eff"] > 0:
+        if l and (l["eff"] > 0 or l.get("final")):
             out.append(l)
             continue
         elig = (config.FLEX_ELIGIBLE if slot == "FLEX" else (slot,))

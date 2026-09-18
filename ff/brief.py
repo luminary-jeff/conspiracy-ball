@@ -5,7 +5,9 @@ from datetime import datetime, timezone
 
 from . import config
 from .season import (SeasonContext, SLOT_ORDER, optimal_lineup, current_lineup, lineup_moves, win_probability,
-                     matchup_for, team_projection, waiver_plan, trade_ideas, evaluate_trade, pending_trades, recap)
+                     live_share, locked_in, matchup_for, team_projection, waiver_plan, trade_ideas, evaluate_trade,
+                     pending_trades, recap,
+                     close_calls)
 from .ui import B, DIM, RED, GRN, YEL, CYN, RST, c, bold, hr, pos_c, short
 from .util import warn
 
@@ -27,7 +29,9 @@ def _pl(l, w=20):
     elif l["inj"]:
         col = RED if l["inj"] in ("Out", "IR", "Doubtful") else YEL
         flags.append(c(col, l["inj"][:4].upper()))
-    if l["locked"]:
+    if l.get("final"):
+        flags.append(c(DIM, "final"))
+    elif l["locked"]:
         flags.append(c(DIM, "locked"))
     opp = ("%s%s" % ("" if l.get("home", True) else "@", l["opp"] or "?")) if l.get("opp") else "bye"
     grade = (" %s" % l["grade"]) if l.get("grade") else ""
@@ -46,11 +50,11 @@ def render_lineup(ctx):
     tilt = 0.0
     wp = None
     if opp_m:
-        _, opp_total = team_projection(ctx, opp_m["roster_id"])
-        _, my_opt_total = optimal_lineup(my_lines)
-        wp = win_probability(my_opt_total, opp_total)
+        opp_lu, opp_total = team_projection(ctx, opp_m["roster_id"])
+        my_opt, my_opt_total = optimal_lineup(my_lines, current=cur)
+        wp = win_probability(my_opt_total, opp_total, live_share(my_opt), live_share(opp_lu))
         tilt = 0.25 if wp < 0.40 else (-0.15 if wp > 0.65 else 0.0)
-    opt, total = optimal_lineup(my_lines, tilt=tilt)
+    opt, total = optimal_lineup(my_lines, tilt=tilt, current=cur)
     moves = lineup_moves(cur, opt)
     L.append(bold("LINEUP — week %d" % ctx.week) + c(DIM, "  projected %.1f" % total) +
              (c(DIM, "  | win prob %d%% -> %s" % (round(wp * 100), "ceiling tilt" if tilt > 0 else ("floor tilt" if tilt < 0 else "neutral"))) if wp is not None else ""))
@@ -71,8 +75,9 @@ def render_lineup(ctx):
         L.append(" %-4s %s" % (slot, _pl(opt[i])))
     bench = [l for l in my_lines if l["pid"] not in {x["pid"] for x in opt if x}]
     bench.sort(key=lambda l: -l["proj"])
-    L.append(c(DIM, " bench: ") + ", ".join("%s %s %.1f%s" % (l["pos"], short(l["name"].split()[-1] if l["pos"] != "DEF" else l["team"], 12), l["proj"],
-                                                          c(RED, " " + l["inj"][:3].upper()) if l["inj"] else "") for l in bench))
+    L.append(c(DIM, " bench: ") + ", ".join("%s %s %.1f%s%s" % (l["pos"], short(l["name"].split()[-1] if l["pos"] != "DEF" else l["team"], 12), l["proj"],
+                                                            c(DIM, " final") if l.get("final") else "",
+                                                            c(RED, " " + l["inj"][:3].upper()) if l["inj"] else "") for l in bench))
     # re-check list
     checks = [l for l in opt if l and (l["inj"] in ("Questionable", "Doubtful") or l["bye"])]
     thu = [l for l in opt if l and l["kickoff"] and l["kickoff"].astimezone().weekday() in (3, 4)]
@@ -85,6 +90,13 @@ def render_lineup(ctx):
                 L.append(c(DIM, "    if %s is out -> start %s (%.1f)" % (l["name"].split()[-1], alt["name"], alt["proj"])))
     if thu:
         L.append(c(DIM, " early lock (Thu/Fri game): ") + ", ".join(l["name"] for l in thu))
+    calls = close_calls(opt, bench)[:3]
+    if calls:
+        L.append(c(DIM, " close calls, and how often the higher projection has won since 2022:"))
+        for slot, st, alt, gap, hit in calls:
+            L.append(c(DIM, "    %-4s %s over %s by %.1f -> right %d%% of the time%s" % (
+                slot, st["name"].split()[-1] if st["pos"] != "DEF" else st["team"], alt["name"].split()[-1], gap,
+                round(hit * 100), " (a coin flip; don't agonize)" if hit <= 0.54 else "")))
     return "\n".join(L)
 
 
@@ -95,22 +107,27 @@ def render_preview(ctx):
     if not opp_m:
         return bold("PREVIEW — week %d" % ctx.week) + "\n  no opponent found (bye week or matchups not published yet)"
     orid = opp_m["roster_id"]
-    my_lu, my_total = optimal_lineup(ctx.roster_lines(ctx.my_rid))
+    my_lu, my_total = optimal_lineup(ctx.roster_lines(ctx.my_rid), current=current_lineup(ctx, ctx.my_rid))
     op_lu, op_total = team_projection(ctx, orid)
-    wp = win_probability(my_total, op_total)
+    wp = win_probability(my_total, op_total, live_share(my_lu), live_share(op_lu))
     r = ctx.by_roster.get(orid, {}).get("settings", {})
     L.append(bold("PREVIEW — week %d vs %s" % (ctx.week, ctx.owner_name(orid))) +
              c(DIM, " (%s-%s)" % (r.get("wins", 0), r.get("losses", 0))))
     col = GRN if wp >= 0.55 else (RED if wp <= 0.45 else YEL)
     L.append("  projected  YOU %s  vs  THEM %s   win probability %s" % (
         bold("%.1f" % my_total), bold("%.1f" % op_total), c(B + col, "%d%%" % round(wp * 100))))
+    my_n, my_pts = locked_in(my_lu)
+    op_n, op_pts = locked_in(op_lu)
+    if my_n or op_n:
+        L.append(c(DIM, "  final (box score, no more change): YOU %d/9 slots = %.1f  ·  THEM %d/9 slots = %.1f  — the rest is projection"
+                  % (my_n, my_pts, op_n, op_pts)))
     fills = [l for l in op_lu if l and l.get("filled_in")]
     if fills:
         L.append(c(DIM, "  assumes they fill holes with: " + ", ".join("%s %s" % (l["pos"], l["name"]) for l in fills)))
-    _, op_best = optimal_lineup(ctx.roster_lines(orid))
+    op_opt, op_best = optimal_lineup(ctx.roster_lines(orid), current=current_lineup(ctx, orid))
     if op_best - op_total > 3:
         L.append(c(DIM, "  (if they fully optimize: %.1f -> your win prob %d%%)" % (
-            op_best, round(win_probability(my_total, op_best) * 100))))
+            op_best, round(win_probability(my_total, op_best, live_share(my_lu), live_share(op_opt)) * 100))))
     L.append(hr())
     L.append("  %-4s %-38s | %s" % ("slot", "you", "them"))
     for i, slot in enumerate(SLOT_ORDER):
@@ -137,6 +154,8 @@ def _short_pl(l):
     inj = (" " + c(RED if l["inj"] in ("Out", "Doubtful") else YEL, l["inj"][:1])) if l["inj"] else ""
     if l.get("filled_in"):
         inj += c(DIM, " *")
+    if l.get("final"):
+        inj += c(DIM, " ✓")
     return "%s %-18s %5.1f%s" % (pos_c(l["pos"]), short(l["name"], 18), l["eff"], inj)
 
 

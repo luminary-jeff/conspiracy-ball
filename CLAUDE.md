@@ -78,8 +78,8 @@ In-sample caveat: the same projections are used to draft and to score.
 | `python3 ff.py draft-live --dry-run [--slot N] [--speed 0.35] [--pause 3]` | ~2-minute simulated draft vs ADP; opponents pick with ADP noise, my picks auto-take the recommendation |
 | `python3 ff.py draft-live --once` | render a single frame and exit (debugging) |
 | `python3 ff.py brief [--all]` | day-aware in-season brief. Tue: recap + waivers + trades + preview. Wed: waivers + trades + preview + lineup. Thu-Mon: lineup + preview. `--all` prints everything |
-| `python3 ff.py lineup` | optimal starters vs what is set in Sleeper; lists OUT/IN moves only if the gain is >= 1 pt; Q/D re-check list with the fallback for each; early-lock (Thu/Fri) warning; ceiling tilt when win prob < 40%, floor tilt > 65% |
-| `python3 ff.py preview` | opponent, both projected totals, win probability (normal, team sd 20), slot-by-slot edges, their injury exposure, and what happens if they fix a bad lineup |
+| `python3 ff.py lineup` | optimal starters vs what is set in Sleeper; lists OUT/IN moves only if the gain is >= 1 pt; Q/D re-check list with the fallback for each; early-lock (Thu/Fri) warning; ceiling tilt when win prob < 40%, floor tilt > 65%; **close calls**: for each open starter-vs-bench decision under 4.5 pts, how often the higher projection has won since 2022 (`CLOSE_CALL_HIT` in `ff/season.py`, produced by `research/hitrates.py`; sets expectations, changes no recommendation) |
+| `python3 ff.py preview` | opponent, both totals, win probability (normal, team sd 26), slot-by-slot edges, their injury exposure, and what happens if they fix a bad lineup. **Finished games count at their box-score points** (✓ marker, "final" line, variance drops accordingly); **in-progress games stay on projection** by design — Jeff does not want Sleeper-style intra-game probability swings |
 | `python3 ff.py waivers` | roster moves: ADD NOW vs CLAIM, each with its drop (never the last backup QB/TE), IR moves, DEF stream only if a free agent out-ranks mine this week, upcoming byes (4 wks), league-wide hot pickups (Sleeper 48h add counts). FAAB bids only appear if `waiver_type == 2` |
 | `python3 ff.py trades` | offers worth sending (my ROS lineup gain >= 4, theirs >= -2, raw value within 1.3x), one per partner; pending offers involving me |
 | `python3 ff.py trade give Waddle for Nabers` | evaluate an explicit trade: ACCEPT / DECLINE / COIN FLIP |
@@ -92,8 +92,16 @@ In-season data (ff/season.py): Sleeper weekly projections (league-scored), Fanta
 (`site.api.espn.com/.../scoreboard?week=N&seasontype=2&dates=<season>` -> kickoff times, spread, total,
 implied team totals; **ESPN returns 403 to browser-like and custom User-Agents but accepts `curl/8.4.0`**),
 Sleeper trending adds/drops (48h). Injury multipliers: Out/IR/PUP/Sus/NA 0, Doubtful 0.3, Questionable 0.9.
+Actuals (`ctx.actual`): the matchups endpoint's `players_points` (Sleeper's own league scoring) plus the stats
+feed scored locally for unrostered players; `player_line` swaps them in only when ESPN marks the game
+`completed` (the ESPN cache drops from 2h to 10min while any game is live). `optimal_lineup(current=...)` pins
+locked starters and bars locked bench players, mirroring what Sleeper allows after kickoff.
 Weekly cadence that matters: waivers process Wed morning (submit Tue night); Sunday inactives drop ~90 min
 before 1 PM ET kickoff; Thu/Fri games lock those players early; trade deadline week 11; playoffs weeks 15-17.
+
+Research (`research/`, never imported by the tool): projection-accuracy study of RotoWire vs pre-game
+information, 2022-2026. Verdict and tables in `research/REPORT.md`; `python3 research/weekly.py` snapshots
+FantasyPros weekly pages, Sleeper projections and DraftKings player prop lines (via ESPN core API, `research/props.py`), refits, and prints the 2026 scoreboards. Prop lines must be captured BEFORE kickoff: for finished games ESPN's `current` value is the last in-game live line, so post-game captures fall back to the opening line; the Thu and Sun scheduled runs call `weekly.py --snapshot-only`. Uses numpy; its data is gitignored.
 
 Env: `NO_COLOR=1` disables ANSI colour. Python 3.9 + `requests` only; no pandas, no database.
 

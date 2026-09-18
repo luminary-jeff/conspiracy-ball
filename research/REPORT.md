@@ -7,11 +7,11 @@ Generated 2026-09-18 by `research/report.py`. Research only; the tool's recommen
 **Answer 1, with a footnote. The improvement is statistically real and too small to matter.**
 
 - Tested on 3395 player-games across 19 weeks the model never saw while fitting (2025 plus completed 2026 weeks).
-- All pre-game features together cut the typical error (RMSE) from 6.626 to 6.602 fantasy points per player-game. That is 0.37% better, p<0.001.
-- On the decision that matters, close start/sit calls, RotoWire's higher projection wins 57.0% of the time and the adjusted projection 57.2%.
-- When the adjusted ranking disagrees with RotoWire, it is right 51.4% of the time over 1039 pairs. That is a coin.
+- All pre-game features together cut the typical error (RMSE) from 6.626 to 6.602 fantasy points per player-game. That is 0.36% better, p<0.001.
+- On the decision that matters, close start/sit calls, RotoWire's higher projection wins 57.0% of the time and the adjusted projection 57.1%.
+- When the adjusted ranking disagrees with RotoWire, it is right 51.1% of the time over 1037 pairs. That is a coin.
 - Ideas that survive the multiple-testing correction: H1 Vegas line (implied total, spread, total).
-- The scrambled-feature control shows a gain of +0.001 (p=0.40), so the pipeline is not manufacturing signal.
+- The scrambled-feature control shows a gain of +0.001 (p=0.38), so the pipeline is not manufacturing signal.
 
 RotoWire already prices in nearly everything knowable before kickoff. What is left is noise: a weekly
 projection explains only a small share of the variance in what a fantasy-relevant player actually scores:
@@ -89,7 +89,7 @@ against raw RotoWire; the rest against the bias-only model so they get no credit
 | H4 snap and opportunity trend | +0.001 | -0.001 to +0.003 | 0.299 | 1.000 |
 | H5 shrink big projections | +0.001 | -0.002 to +0.004 | 0.315 | 1.000 |
 | H6 venue, weather, rest, Thursday | +0.006 | -0.003 to +0.015 | 0.091 | 0.636 |
-| H7 quarterback change | -0.000 | -0.001 to +0.001 | 0.498 | 1.000 |
+| H7 quarterback change | -0.000 | -0.001 to +0.000 | 0.687 | 1.000 |
 | H8 weeks 1-3 | -0.000 | -0.004 to +0.004 | 0.554 | 1.000 |
 
 Full model by position:
@@ -97,13 +97,28 @@ Full model by position:
 | pos | baseline RMSE | gain | p |
 |---|---|---|---|
 | QB | 7.668 | +0.070 | 0.000 |
-| RB | 7.045 | -0.004 | 0.658 |
+| RB | 7.045 | -0.004 | 0.670 |
 | WR | 6.265 | +0.024 | 0.000 |
-| TE | 5.580 | +0.023 | 0.233 |
+| TE | 5.580 | +0.021 | 0.247 |
 | ALL | 6.626 | +0.024 | 0.000 |
 
 H9, the size of the miss: projection size predicts it (gain +0.087, p=0.000). Adding the betting line,
-venue and weather on top adds -0.006 (p=0.951), which is nothing.
+venue and weather on top adds -0.005 (p=0.892), which is nothing.
+
+## H10, added after the first report: player prop lines
+
+DraftKings lines served by ESPN, collected forward from 2026 week 1 (2025 was already purged, so there is
+no back-test). The feed has yardage and reception lines but no prices, so touchdowns stay RotoWire's.
+No fitting: the market's numbers simply replace RotoWire's yardage and catch components.
+
+| week | players with a line | MAE RotoWire | MAE prop-swapped |
+|---|---|---|---|
+| 1 | 183 | 5.765 | 5.542 |
+| all | 183 | 5.765 | 5.542 |
+
+Props are ahead so far. Do not act on this before roughly 1,500 player-games (about week 8). Weeks captured only after the
+games use opening lines, because ESPN overwrites the closing line with the last in-game live line. From
+week 2 on, the Thursday and Sunday runs snapshot before kickoff.
 
 ## Method and caveats
 
@@ -121,8 +136,7 @@ venue and weather on top adds -0.006 (p=0.951), which is nothing.
   It did not help anyway.
 - FantasyPros could not be back-tested; past weekly rankings are not published. `weekly.py` now snapshots
   them each week, so a two-source blend can be tested from mid-season on.
-- Not tested: player prop lines, which are the one public source plausibly sharper than RotoWire, and
-  practice-report detail beyond the injury tag.
+- Not tested: practice-report detail beyond the injury tag. Prop lines are being collected (H10 above).
 
 ## Reproduce
 
@@ -133,5 +147,7 @@ python3 research/evaluate.py    # hypothesis tests
 python3 research/cases.py       # Goff and Purdy
 python3 research/report.py      # this file
 python3 research/apply.py       # adjusted numbers for the current week
-python3 research/weekly.py      # snapshot + refresh + scoreboard, run each week
+python3 research/props.py       # --snapshot / --evaluate player prop lines (H10)
+python3 research/hitrates.py    # close-call hit rates pasted into ff/season.py CLOSE_CALL_HIT
+python3 research/weekly.py      # snapshot + refresh + scoreboards, run each week
 ```
