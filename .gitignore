@@ -7,3 +7,5 @@ __pycache__/
 .DS_Store
 site/index.html
 .claude/scheduled_tasks.lock
+research/data/
+research/snapshots/
