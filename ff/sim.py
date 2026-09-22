@@ -31,6 +31,16 @@ def apply_trades(ctx, trades):
         ctx.owned[g], ctx.owned[r] = other["roster_id"], ctx.my_rid
 
 
+def week_complete(ctx, w):
+    """True once every NFL game of week w is final (ESPN scoreboard). Sleeper keeps the state week at w
+    until Tuesday/Wednesday, so without this the just-finished week is re-simulated as a coin flip
+    and the Monday-to-Wednesday odds swing with it."""
+    if w != ctx.week:
+        return False
+    games = [o for o in (ctx.odds or {}).values() if o.get("kickoff")]
+    return bool(games) and all(o.get("final") for o in games)
+
+
 def run_sim(ctx, sims=20000, seed=1, trades=None):
     apply_trades(ctx, trades)
     api = ctx.api
@@ -74,7 +84,7 @@ def run_sim(ctx, sims=20000, seed=1, trades=None):
         for m in ms:
             by[m.get("matchup_id")].append(m["roster_id"])
         sched[w] = [tuple(v) for v in by.values() if len(v) == 2]
-        if w < ctx.week and ms and any((m.get("points") or 0) > 0 for m in ms):
+        if ms and any((m.get("points") or 0) > 0 for m in ms) and (w < ctx.week or week_complete(ctx, w)):
             actual[w] = {m["roster_id"]: m.get("points") or 0 for m in ms}
 
     rng = random.Random(seed)
