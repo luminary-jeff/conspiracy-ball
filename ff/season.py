@@ -465,6 +465,15 @@ def season_started(ctx):
     return bool(kicks) and min(kicks) <= ctx.now
 
 
+def game_played(ctx, pid):
+    """Sleeper locks a player once his game kicks off and keeps him on waivers until the next waiver run
+    (Wednesday morning), so from Thursday night until Sleeper rolls the week, anyone who has played is a
+    CLAIM, not an instant add. After the roll ctx.odds holds the new week's games and nobody has played."""
+    team = (ctx.players.get(pid) or {}).get("team") or pid
+    kick = (ctx.odds.get(team) or {}).get("kickoff")
+    return bool(kick) and kick <= ctx.now
+
+
 def recently_dropped(ctx, days=2):
     """player_id -> drop timestamp for players dropped in the last `days` (they sit on waivers)."""
     out = {}
@@ -517,7 +526,7 @@ def waiver_plan(ctx, max_claims=4):
             if best and (best[1] > 0.5 or (pos in ("K", "DEF") and best[2] > 1)):
                 claims.append({"add": c, "drop": best[3], "gain": round(best[1], 1), "raw_gain": round(best[2], 1),
                                "bid": faab_bid(max(best[1], best[2] * 0.5), remaining, weeks_left) if wt == 2 else None,
-                               "on_waivers": c["pid"] in dropped or (started and False)})
+                               "on_waivers": c["pid"] in dropped or (started and game_played(ctx, c["pid"]))})
     claims.sort(key=lambda x: (-x["gain"], -x["raw_gain"]))
     # de-dup drops: one drop per claim in priority order
     used_drops, final = set(), []

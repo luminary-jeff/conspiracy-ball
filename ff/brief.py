@@ -171,7 +171,8 @@ def render_waivers(ctx):
     if not plan["started"]:
         L.append(c(DIM, "  Every unowned player is a free agent until Thursday kickoff: adds are instant, no claim needed."))
     else:
-        L.append(c(DIM, "  Players dropped in the last 2 days sit on waivers (claims process Wed morning, submit by Tue night); everyone else is an instant add."))
+        L.append(c(DIM, "  On waivers (claims process Wed morning, submit by Tue night): anyone dropped in the last 2 days, and from the first kickoff"))
+        L.append(c(DIM, "  until Sleeper rolls the week, anyone whose game has been played. Everyone else is an instant add."))
     if plan["ir"]:
         L.append(c(B + RED, "★ IR first: ") + ", ".join("%s (%s)" % (l["name"], l["inj"]) for l in plan["ir"]) +
                  c(DIM, "  -> Sleeper shows an IR tag next to eligible players; moving one frees a bench slot"))
