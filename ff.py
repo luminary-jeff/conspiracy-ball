@@ -15,6 +15,9 @@ import warnings
 
 warnings.filterwarnings("ignore")  # urllib3 LibreSSL notice on macOS system Python
 
+from ff.pyfix import ensure_deps
+ensure_deps()
+
 from ff import config
 from ff.sleeper import Sleeper, bye_weeks
 from ff.sources import fetch_fantasypros, load_manual_csv

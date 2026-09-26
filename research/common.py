@@ -11,6 +11,8 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
+from ff.pyfix import ensure_deps  # noqa: E402  (re-exec under the system python if `requests` is missing)
+ensure_deps()
 
 RESEARCH_DIR = os.path.join(ROOT, "research")
 DATA_DIR = os.path.join(RESEARCH_DIR, "data")

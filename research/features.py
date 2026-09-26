@@ -15,6 +15,11 @@ Hypothesis groups (pre-registered in the plan, 2026-09-18):
 """
 from collections import defaultdict
 
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+from ff.pyfix import ensure_deps  # noqa: E402  (re-exec under the system python if `requests` is missing)
+ensure_deps()
+
 import numpy as np
 
 from . import common as C

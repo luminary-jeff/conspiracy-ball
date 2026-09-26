@@ -108,6 +108,10 @@ Env: `NO_COLOR=1` disables ANSI colour. Python 3.9 + `requests` only; no pandas,
 ## Engineering rules for this repo
 
 - Python 3.9 compatible (macOS system python): no `match`, no `X | Y` unions, no `list[str]` at runtime.
+- The tool runs on `/usr/bin/python3` (3.9; has requests + numpy). A Homebrew Python 3.14 landed first on PATH on
+  2026-09-26 with no packages, so every entry point calls `ff.pyfix.ensure_deps()` first: if `requests` is missing
+  it re-execs the same command under the system python. `python3 ff.py ...` therefore keeps working; do not
+  install packages into the Homebrew python for this repo.
 - Never raise on network failure; degrade to cached data and say so on screen.
 - Output must be scannable in 30 seconds: bold single RECOMMENDATION + one reason line, then supporting tables.
 - Keep `data/` as the only state; it is disposable and gitignored.

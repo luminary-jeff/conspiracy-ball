@@ -5,6 +5,11 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+from ff.pyfix import ensure_deps  # noqa: E402  (re-exec under the system python if `requests` is missing)
+ensure_deps()
+
 from research import common as C  # noqa: E402
 from research import features as F  # noqa: E402
 

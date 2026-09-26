@@ -3,6 +3,8 @@
 import json, warnings
 warnings.filterwarnings("ignore")
 import sys
+from ff.pyfix import ensure_deps  # re-exec under the system python if `requests` is missing
+ensure_deps()
 import requests
 from ff.draft import lineup_value
 from ff import config

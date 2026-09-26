@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 warnings.filterwarnings("ignore")
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
+from ff.pyfix import ensure_deps  # re-exec under the system python if `requests` is missing
+ensure_deps()
 from ff import config
 from ff.season import SeasonContext, recap
 from ff.sim import run_sim, american

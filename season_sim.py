@@ -2,6 +2,8 @@
 """Season simulation CLI. Usage: python3 season_sim.py [--sims 20000] [--trade "Irving>Red9455:Smith"]"""
 import argparse, warnings
 warnings.filterwarnings("ignore")
+from ff.pyfix import ensure_deps  # re-exec under the system python if `requests` is missing
+ensure_deps()
 from ff import config
 from ff.season import SeasonContext
 from ff.sim import run_sim, american
