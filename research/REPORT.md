@@ -1,17 +1,17 @@
 # Can pre-game information beat RotoWire? Projection accuracy study
 
-Generated 2026-09-18 by `research/report.py`. Research only; the tool's recommendations do not use any of this.
+Generated 2026-09-29 by `research/report.py`. Research only; the tool's recommendations do not use any of this.
 
 ## Verdict
 
 **Answer 1, with a footnote. The improvement is statistically real and too small to matter.**
 
-- Tested on 3395 player-games across 19 weeks the model never saw while fitting (2025 plus completed 2026 weeks).
-- All pre-game features together cut the typical error (RMSE) from 6.626 to 6.602 fantasy points per player-game. That is 0.36% better, p<0.001.
-- On the decision that matters, close start/sit calls, RotoWire's higher projection wins 57.0% of the time and the adjusted projection 57.1%.
-- When the adjusted ranking disagrees with RotoWire, it is right 51.1% of the time over 1037 pairs. That is a coin.
+- Tested on 3773 player-games across 21 weeks the model never saw while fitting (2025 plus completed 2026 weeks).
+- All pre-game features together cut the typical error (RMSE) from 6.608 to 6.584 fantasy points per player-game. That is 0.35% better, p<0.001.
+- On the decision that matters, close start/sit calls, RotoWire's higher projection wins 57.1% of the time and the adjusted projection 57.3%.
+- When the adjusted ranking disagrees with RotoWire, it is right 52.6% of the time over 1155 pairs. That is a coin.
 - Ideas that survive the multiple-testing correction: H1 Vegas line (implied total, spread, total).
-- The scrambled-feature control shows a gain of +0.001 (p=0.38), so the pipeline is not manufacturing signal.
+- The scrambled-feature control shows a gain of +0.002 (p=0.36), so the pipeline is not manufacturing signal.
 
 RotoWire already prices in nearly everything knowable before kickoff. What is left is noise: a weekly
 projection explains only a small share of the variance in what a fantasy-relevant player actually scores:
@@ -82,28 +82,28 @@ against raw RotoWire; the rest against the bias-only model so they get no credit
 
 | idea | gain | 95% interval | p | corrected p |
 |---|---|---|---|---|
-| H0 flat bias correction per position | +0.007 | -0.000 to +0.014 | 0.028 | 0.221 |
-| H1 Vegas line (implied total, spread, total) | +0.006 | +0.002 to +0.010 | 0.001 | 0.009 |
-| H2 opposing defense's record | +0.003 | -0.002 to +0.009 | 0.091 | 0.636 |
-| H3 player's recent misses | -0.000 | -0.001 to +0.001 | 0.667 | 1.000 |
-| H4 snap and opportunity trend | +0.001 | -0.001 to +0.003 | 0.299 | 1.000 |
-| H5 shrink big projections | +0.001 | -0.002 to +0.004 | 0.315 | 1.000 |
-| H6 venue, weather, rest, Thursday | +0.006 | -0.003 to +0.015 | 0.091 | 0.636 |
-| H7 quarterback change | -0.000 | -0.001 to +0.000 | 0.687 | 1.000 |
-| H8 weeks 1-3 | -0.000 | -0.004 to +0.004 | 0.554 | 1.000 |
+| H0 flat bias correction per position | +0.005 | -0.003 to +0.012 | 0.110 | 0.769 |
+| H1 Vegas line (implied total, spread, total) | +0.007 | +0.003 to +0.012 | 0.000 | 0.004 |
+| H2 opposing defense's record | +0.003 | -0.002 to +0.008 | 0.114 | 0.769 |
+| H3 player's recent misses | -0.000 | -0.001 to +0.001 | 0.543 | 1.000 |
+| H4 snap and opportunity trend | +0.001 | -0.001 to +0.003 | 0.302 | 1.000 |
+| H5 shrink big projections | +0.001 | -0.002 to +0.004 | 0.258 | 1.000 |
+| H6 venue, weather, rest, Thursday | +0.008 | -0.002 to +0.017 | 0.052 | 0.418 |
+| H7 quarterback change | -0.001 | -0.002 to +0.001 | 0.772 | 1.000 |
+| H8 weeks 1-3 | -0.001 | -0.005 to +0.003 | 0.678 | 1.000 |
 
 Full model by position:
 
 | pos | baseline RMSE | gain | p |
 |---|---|---|---|
-| QB | 7.668 | +0.070 | 0.000 |
-| RB | 7.045 | -0.004 | 0.670 |
-| WR | 6.265 | +0.024 | 0.000 |
-| TE | 5.580 | +0.021 | 0.247 |
-| ALL | 6.626 | +0.024 | 0.000 |
+| QB | 7.687 | +0.069 | 0.000 |
+| RB | 6.916 | -0.001 | 0.517 |
+| WR | 6.272 | +0.020 | 0.000 |
+| TE | 5.650 | +0.017 | 0.280 |
+| ALL | 6.608 | +0.023 | 0.000 |
 
-H9, the size of the miss: projection size predicts it (gain +0.087, p=0.000). Adding the betting line,
-venue and weather on top adds -0.005 (p=0.892), which is nothing.
+H9, the size of the miss: projection size predicts it (gain +0.092, p=0.000). Adding the betting line,
+venue and weather on top adds -0.008 (p=0.984), which is nothing.
 
 ## H10, added after the first report: player prop lines
 
@@ -114,7 +114,8 @@ No fitting: the market's numbers simply replace RotoWire's yardage and catch com
 | week | players with a line | MAE RotoWire | MAE prop-swapped |
 |---|---|---|---|
 | 1 | 183 | 5.765 | 5.542 |
-| all | 183 | 5.765 | 5.542 |
+| 2 | 190 | 5.287 | 5.134 |
+| all | 373 | 5.522 | 5.334 |
 
 Props are ahead so far. Do not act on this before roughly 1,500 player-games (about week 8). Weeks captured only after the
 games use opening lines, because ESPN overwrites the closing line with the last in-game live line. From
