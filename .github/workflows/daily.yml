@@ -2,9 +2,13 @@ name: Daily case file
 
 on:
   schedule:
-    # GitHub runs cron on a best-effort basis (often hours late, sometimes skipped), so ask twice.
-    - cron: "17 12 * * *"     # 12:17 UTC daily (8:17 AM ET) — after Wednesday waivers and Monday night scores
-    - cron: "41 16 * * *"     # 16:41 UTC fallback (12:41 PM ET)
+    # GitHub runs cron on a best-effort basis (2026-10-05: the 12:17 slot fired at 20:34 UTC and the 16:41
+    # slot at 22:53 UTC, so the page refreshed before Monday night ended and was stale all Tuesday).
+    # Jeff wants the page current by 6 AM ET, so ask early and keep asking; a refresh with nothing new is free.
+    - cron: "17 10 * * *"     # 10:17 UTC (6:17 AM EDT / 5:17 AM EST) — after Monday night scores
+    - cron: "47 11 * * *"     # 11:47 UTC retry
+    - cron: "17 13 * * *"     # 13:17 UTC retry (after Wednesday waivers)
+    - cron: "41 16 * * *"     # 16:41 UTC last resort
   workflow_dispatch:
 
 permissions:

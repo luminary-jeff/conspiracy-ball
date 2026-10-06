@@ -98,6 +98,12 @@ def fetch_espn_odds(week, season=config.SEASON):
     return out
 
 
+def _week_final(week, season=config.SEASON):
+    """True once ESPN marks every game of the week completed (bye teams are simply absent)."""
+    odds = fetch_espn_odds(week, season)
+    return bool(odds) and all(v.get("final") for v in odds.values())
+
+
 def _games_in_progress(data):
     now = datetime.now(timezone.utc)
     for ev in (data or {}).get("events", []):
@@ -118,7 +124,14 @@ class SeasonContext:
         self.now = datetime.now(timezone.utc)
         st = self.api.state() or {}
         self.season = st.get("season") or config.SEASON
-        self.week = int(week or st.get("display_week") or st.get("week") or 1)
+        # Sleeper's display_week lags its week by most of a Tuesday (2026-10-06: week 5, display_week 4 at
+        # 6:30 AM ET with Monday night long over), which left the recap, the site and the waiver screen a
+        # week behind all morning. Roll forward as soon as every game of the displayed week is final.
+        shown = int(st.get("display_week") or st.get("week") or 1)
+        nxt = int(st.get("week") or shown)
+        if not week and nxt > shown and _week_final(shown, self.season):
+            shown = nxt
+        self.week = int(week or shown)
         self.league = self.api.league() or {}
         self.scoring = self.league.get("scoring_settings") or {}
         self.users = {u["user_id"]: (u.get("display_name") or u["user_id"]) for u in (self.api.users() or [])}

@@ -9,7 +9,7 @@ sys.path.insert(0, ROOT)
 from ff.pyfix import ensure_deps  # re-exec under the system python if `requests` is missing
 ensure_deps()
 from ff import config
-from ff.season import SeasonContext, recap
+from ff.season import SeasonContext, recap, fetch_espn_odds
 from ff.sim import run_sim, american
 from ff.draft import lineup_value
 from ff.sleeper import Sleeper
@@ -115,7 +115,10 @@ for w in range(1, ctx.week):
     if not rc or rc.get("empty"):
         continue
     ms = api.matchups(w) or []
-    ts = time.time() - (ctx.week - w) * 7 * 86400
+    # date the final at the end of the week's last game (Monday night + 4h) so it tops the wire the
+    # morning after; the old "today minus N weeks" stamp buried it under a week of roster moves
+    kicks = [v["kickoff"] for v in fetch_espn_odds(w, ctx.season).values() if v.get("kickoff")]
+    ts = max(kicks).timestamp() + 4 * 3600 if kicks else time.time() - (ctx.week - w) * 7 * 86400
     res = "; ".join("%s %.0f def. %s %.0f" % (labels[g["winner"]]["owner"], g["w_pts"], labels[g["loser"]]["owner"], g["l_pts"]) for g in rc["games"])
     hi = max(rc["scores"], key=rc["scores"].get)
     lo = min(rc["scores"], key=rc["scores"].get)
